@@ -1,193 +1,361 @@
-# Fiber-color-
-Assist fiber techs who are color deficient 
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Fiber Optic Color Identifier</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #000; color: #fff; overflow: hidden; }
-        
-        #viewport { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        canvas { display: none; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
 
-        /* Reticle Box */
-        #reticle {
-            position: absolute; width: 40px; height: 40px;
-            border: 3px solid #ffcc00; box-shadow: 0 0 8px rgba(0,0,0,0.8);
+        /* Top 55% of Screen: Camera View */
+        #camera-container {
+            position: relative;
+            width: 100%;
+            height: 55vh;
+            background: #111;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        canvas#overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
         }
+        .reticle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border: 3px solid #00ffcc;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 15;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+        }
+        .reticle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: #ff0055;
+            border-radius: 50%;
+        }
 
-        /* Top Controls */
-        #controls {
-            position: absolute; top: 20px; right: 20px; z-index: 10;
+        /* Start Overlay */
+        #start-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
         }
-        .btn {
-            background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255,255,255,0.3);
-            color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 14px; cursor: pointer;
+        #start-btn {
+            padding: 20px 36px;
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 16px;
+            margin-top: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
         }
 
-        /* Result Display Overlay */
-        #result-card {
-            position: absolute; bottom: 40px;
-            background: rgba(0, 0, 0, 0.85); border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 16px 32px; border-radius: 16px; text-align: center;
-            backdrop-filter: blur(8px);
+        /* Bottom 45% of Screen: Large High-Contrast Results Panel */
+        #result-panel {
+            height: 45vh;
+            background: #1c1c1e;
+            border-top: 2px solid #38383a;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
         }
-        #strand-num { font-size: 18px; color: #ffcc00; font-family: monospace; font-weight: bold; }
-        #color-name { font-size: 32px; font-weight: bold; text-transform: uppercase; margin-top: 4px; }
+        .result-card {
+            display: flex;
+            align-items: center;
+            background: #2c2c2e;
+            border-radius: 16px;
+            padding: 16px;
+            border: 2px solid #444;
+            gap: 16px;
+        }
+        .color-badge {
+            width: 72px;
+            height: 72px;
+            border-radius: 12px;
+            border: 3px solid #fff;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .result-info {
+            flex: 1;
+            overflow: hidden;
+        }
+        .result-title {
+            font-size: 2.2rem;
+            font-weight: 900;
+            line-height: 1.1;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+        .result-sub {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #34c759; /* Bright green text for metrics */
+            margin-top: 6px;
+        }
+
+        /* Large Action Buttons */
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-top: auto;
+        }
+        button.ctrl-btn {
+            flex: 1;
+            padding: 18px 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 14px;
+            background-color: #2c2c2e;
+            color: #0a84ff;
+            border: 1px solid #3a3a3c;
+        }
+        button.ctrl-btn:active {
+            background-color: #3a3a3c;
+        }
     </style>
 </head>
 <body>
 
-<div id="viewport">
-    <video id="webcam" autoplay playsinline></video>
-    <canvas id="analyzer"></canvas>
-    <div id="reticle"></div>
-
-    <div id="controls">
-        <button id="torch-btn" class="btn" onclick="toggleTorch()">Flashlight: OFF</button>
+    <div id="start-overlay">
+        <h1 style="font-size: 2.2rem;">Fiber Identifier</h1>
+        <p style="margin-top: 12px; font-size: 1.2rem; color: #aaa;">Align fiber strand in center dot</p>
+        <button id="start-btn">TAP TO START</button>
     </div>
 
-    <div id="result-card">
-        <div id="strand-num">ALIGN RETICLE</div>
-        <div id="color-name">SCANNING</div>
+    <div id="camera-container">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="reticle"></div>
     </div>
-</div>
 
-<script>
-// TIA-598 Standard 12-Color Palette mapped in CIELAB
-const TIA598_PALETTE = [
-    { name: "Blue", strand: 1, lab: [32, 79, -107] },
-    { name: "Orange", strand: 2, lab: [67, 43, 74] },
-    { name: "Green", strand: 3, lab: [46, -51, 49] },
-    { name: "Brown", strand: 4, lab: [35, 13, 27] },
-    { name: "Slate", strand: 5, lab: [53, 0, -2] },
-    { name: "White", strand: 6, lab: [90, 0, 0] },
-    { name: "Red", strand: 7, lab: [41, 62, 52] },
-    { name: "Black", strand: 8, lab: [10, 0, 0] },
-    { name: "Yellow", strand: 9, lab: [89, -10, 83] },
-    { name: "Violet", strand: 10, lab: [30, 48, -58] },
-    { name: "Rose", strand: 11, lab: [70, 48, 10] },
-    { name: "Aqua", strand: 12, lab: [78, -31, -15] }
-];
+    <div id="result-panel">
+        <div class="result-card">
+            <div id="swatch" class="color-badge" style="background-color: #555;"></div>
+            <div class="result-info">
+                <div id="color-name" class="result-title">READY</div>
+                <div id="color-pos" class="result-sub">Pos: -- | ΔE: --</div>
+            </div>
+        </div>
 
-let videoTrack = null;
-let torchOn = false;
+        <div class="controls">
+            <button id="toggle-speech" class="ctrl-btn">🔊 Audio: ON</button>
+            <button id="freeze-btn" class="ctrl-btn">⏸ Freeze</button>
+        </div>
+    </div>
 
-// Initialize Camera Stream
-async function initCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        const video = document.getElementById('webcam');
-        video.srcObject = stream;
-        videoTrack = stream.getVideoTracks()[0];
-        
-        requestAnimationFrame(processFrame);
-    } catch (err) {
-        // Fallback to any available camera if rear environment camera is unavailable
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        document.getElementById('webcam').srcObject = stream;
-        videoTrack = stream.getVideoTracks()[0];
-        requestAnimationFrame(processFrame);
-    }
-}
+    <script>
+        const TIA598 = [
+            { pos: 1,  name: "BLUE",   abbr: "BL", rgb: [0, 90, 212] },
+            { pos: 2,  name: "ORANGE", abbr: "OR", rgb: [242, 107, 15] },
+            { pos: 3,  name: "GREEN",  abbr: "GR", rgb: [24, 150, 48] },
+            { pos: 4,  name: "BROWN",  abbr: "BR", rgb: [102, 57, 24] },
+            { pos: 5,  name: "SLATE",  abbr: "SL", rgb: [110, 120, 128] },
+            { pos: 6,  name: "WHITE",  abbr: "WH", rgb: [225, 230, 235] },
+            { pos: 7,  name: "RED",    abbr: "RD", rgb: [210, 25, 35] },
+            { pos: 8,  name: "BLACK",  abbr: "BK", rgb: [25, 25, 28] },
+            { pos: 9,  name: "YELLOW", abbr: "YL", rgb: [245, 195, 20] },
+            { pos: 10, name: "VIOLET", abbr: "VI", rgb: [115, 38, 140] },
+            { pos: 11, name: "ROSE",   abbr: "RS", rgb: [235, 125, 160] },
+            { pos: 12, name: "AQUA",   abbr: "AQ", rgb: [0, 175, 190] }
+        ];
 
-// Flashlight/Torch Control via MediaTrackConstraints
-async function toggleTorch() {
-    if (!videoTrack) return;
-    const capabilities = videoTrack.getCapabilities();
-    if (capabilities.torch) {
-        torchOn = !torchOn;
-        await videoTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
-        document.getElementById('torch-btn').innerText = `Flashlight: ${torchOn ? 'ON' : 'OFF'}`;
-    } else {
-        alert("Torch is not supported on this device/browser.");
-    }
-}
+        function rgbToLab(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+            g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+            b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
 
-// Convert sRGB to CIELAB Space
-function rgbToLab(r, g, b) {
-    let R = r / 255, G = g / 255, B = b / 255;
-    R = (R > 0.04045) ? Math.pow((R + 0.055) / 1.055, 2.4) : (R / 12.92);
-    G = (G > 0.04045) ? Math.pow((G + 0.055) / 1.055, 2.4) : (G / 12.92);
-    B = (B > 0.04045) ? Math.pow((B + 0.055) / 1.055, 2.4) : (B / 12.92);
+            let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100 / 95.047;
+            let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100 / 100.000;
+            let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100 / 108.883;
 
-    const X = (R * 0.4124 + G * 0.3576 + B * 0.1805) * 100 / 95.047;
-    const Y = (R * 0.2126 + G * 0.7152 + B * 0.0722) * 100 / 100.000;
-    const Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) * 100 / 108.883;
+            x = x > 0.008856 ? Math.cbrt(x) : (7.787 * x) + (16 / 116);
+            y = y > 0.008856 ? Math.cbrt(y) : (7.787 * y) + (16 / 116);
+            z = z > 0.008856 ? Math.cbrt(z) : (7.787 * z) + (16 / 116);
 
-    const f = t => (t > 0.008856) ? Math.pow(t, 1/3) : (7.787 * t) + (16 / 116);
-
-    const L = (116 * f(Y)) - 16;
-    const aVal = 500 * (f(X) - f(Y));
-    const bVal = 200 * (f(Y) - f(Z));
-
-    return [L, aVal, bVal];
-}
-
-// Euclidean Delta E
-function deltaE(lab1, lab2) {
-    const dL = lab1[0] - lab2[0];
-    const da = lab1[1] - lab2[1];
-    const db = lab1[2] - lab2[2];
-    return Math.sqrt(dL * dL + da * da + db * db);
-}
-
-// Process Viewframe Reticle Pixels
-function processFrame() {
-    const video = document.getElementById('webcam');
-    const canvas = document.getElementById('analyzer');
-    const ctx = canvas.getContext('2d');
-
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Sample center 20x20 pixel square
-        const sampleSize = 20;
-        const startX = Math.floor((canvas.width - sampleSize) / 2);
-        const startY = Math.floor((canvas.height - sampleSize) / 2);
-        const imgData = ctx.getImageData(startX, startY, sampleSize, sampleSize).data;
-
-        let totalR = 0, totalG = 0, totalB = 0, count = 0;
-        for (let i = 0; i < imgData.length; i += 4) {
-            totalR += imgData[i];
-            totalG += imgData[i + 1];
-            totalB += imgData[i + 2];
-            count++;
+            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
-        const avgLab = rgbToLab(totalR / count, totalG / count, totalB / count);
+        function deltaE00(lab1, lab2) {
+            const [L1, a1, b1] = lab1;
+            const [L2, a2, b2] = lab2;
+            const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2);
+            const C_bar = (C1 + C2) / 2;
+            const G = 0.5 * (1 - Math.sqrt(Math.pow(C_bar, 7) / (Math.pow(C_bar, 7) + Math.pow(25, 7))));
+            const a1p = (1 + G) * a1, a2p = (1 + G) * a2;
+            const C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
+            const C_barp = (C1p + C2p) / 2;
+            const h1p = Math.atan2(b1, a1p) * 180 / Math.PI + (Math.atan2(b1, a1p) < 0 ? 360 : 0);
+            const h2p = Math.atan2(b2, a2p) * 180 / Math.PI + (Math.atan2(b2, a2p) < 0 ? 360 : 0);
+            const H_barp = Math.abs(h1p - h2p) > 180 ? (h1p + h2p + 360) / 2 : (h1p + h2p) / 2;
+            const T = 1 - 0.17 * Math.cos((H_barp - 30) * Math.PI / 180) + 0.24 * Math.cos((2 * H_barp) * Math.PI / 180) + 0.32 * Math.cos((3 * H_barp + 6) * Math.PI / 180) - 0.20 * Math.cos((4 * H_barp - 63) * Math.PI / 180);
+            const deltahp = Math.abs(h1p - h2p) <= 180 ? h2p - h1p : (h2p <= h1p ? h2p - h1p + 360 : h2p - h1p - 360);
+            const deltaLp = L2 - L1, deltaCp = C2p - C1p, deltaHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((deltahp / 2) * Math.PI / 180);
+            const Sl = 1 + (0.015 * Math.pow(L1 - 50, 2)) / Math.sqrt(20 + Math.pow(L1 - 50, 2));
+            const Sc = 1 + 0.045 * C_barp, Sh = 1 + 0.015 * C_barp * T;
+            const Rt = -2 * Math.sqrt(Math.pow(C_barp, 7) / (Math.pow(C_barp, 7) + Math.pow(25, 7))) * Math.sin((60 * Math.exp(-Math.pow((H_barp - 275) / 25, 2))) * Math.PI / 180);
+            return Math.sqrt(Math.pow(deltaLp / Sl, 2) + Math.pow(deltaCp / Sc, 2) + Math.pow(deltaHp / Sh, 2) + Rt * (deltaCp / Sc) * (deltaHp / Sh));
+        }
 
-        // Find nearest TIA-598 match
-        let bestMatch = null;
-        let minDistance = Infinity;
+        const TIA598_LAB = TIA598.map(item => ({ ...item, lab: rgbToLab(...item.rgb) }));
 
-        for (const item of TIA598_PALETTE) {
-            const dist = deltaE(item.lab, avgLab);
-            if (dist < minDistance) {
-                minDistance = dist;
-                bestMatch = item;
+        const video = document.getElementById('webcam');
+        const overlay = document.getElementById('overlay');
+        const ctx = overlay.getContext('2d');
+        let speechEnabled = true;
+        let isFrozen = false;
+        let lastSpoken = "";
+        const synth = window.speechSynthesis;
+
+        function speak(text) {
+            if (!speechEnabled || synth.speaking || lastSpoken === text) return;
+            const utterThis = new SpeechSynthesisUtterance(text);
+            utterThis.rate = 1.0;
+            lastSpoken = text;
+            synth.speak(utterThis);
+        }
+
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { exact: "environment" } },
+                    audio: false
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }
+                });
+                video.srcObject = fallbackStream;
             }
         }
 
-        if (bestMatch) {
-            document.getElementById('strand-num').innerText = `STRAND #${bestMatch.strand}`;
-            document.getElementById('color-name').innerText = bestMatch.name;
+        function sampleCenterColor() {
+            if (video.readyState !== video.HAVE_ENOUGH_DATA || isFrozen) return;
+
+            overlay.width = video.videoWidth;
+            overlay.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
+
+            const sampleSize = 20;
+            const startX = Math.floor(overlay.width / 2 - sampleSize / 2);
+            const startY = Math.floor(overlay.height / 2 - sampleSize / 2);
+            const frameData = ctx.getImageData(startX, startY, sampleSize, sampleSize).data;
+
+            let validPixels = [];
+            for (let i = 0; i < frameData.length; i += 4) {
+                const r = frameData[i], g = frameData[i + 1], b = frameData[i + 2];
+                const brightness = (r + g + b) / 3;
+                if (brightness < 240) {
+                    validPixels.push([r, g, b]);
+                }
+            }
+
+            if (validPixels.length === 0) return;
+
+            const avgR = Math.round(validPixels.reduce((acc, p) => acc + p[0], 0) / validPixels.length);
+            const avgG = Math.round(validPixels.reduce((acc, p) => acc + p[1], 0) / validPixels.length);
+            const avgB = Math.round(validPixels.reduce((acc, p) => acc + p[2], 0) / validPixels.length);
+
+            const sampledLab = rgbToLab(avgR, avgG, avgB);
+
+            let closest = null;
+            let minDistance = Infinity;
+
+            for (const item of TIA598_LAB) {
+                const dist = deltaE00(sampledLab, item.lab);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closest = item;
+                }
+            }
+
+            if (closest) {
+                document.getElementById('swatch').style.backgroundColor = `rgb(${avgR}, ${avgG}, ${avgB})`;
+                document.getElementById('color-name').innerText = `${closest.pos}. ${closest.name}`;
+                document.getElementById('color-pos').innerText = `Abbr: ${closest.abbr}  |  ΔE: ${minDistance.toFixed(1)}`;
+                speak(`${closest.name}, Position ${closest.pos}`);
+            }
         }
-    }
 
-    requestAnimationFrame(processFrame);
-}
+        document.getElementById('start-btn').addEventListener('click', async () => {
+            const silentUtterance = new SpeechSynthesisUtterance("");
+            synth.speak(silentUtterance);
 
-window.addEventListener('load', initCamera);
-</script>
+            document.getElementById('start-overlay').style.display = 'none';
+            await initCamera();
+            setInterval(sampleCenterColor, 200);
+        });
+
+        document.getElementById('toggle-speech').addEventListener('click', (e) => {
+            speechEnabled = !speechEnabled;
+            e.target.innerText = speechEnabled ? "🔊 Audio: ON" : "🔇 Audio: OFF";
+        });
+
+        document.getElementById('freeze-btn').addEventListener('click', (e) => {
+            isFrozen = !isFrozen;
+            if (isFrozen) {
+                video.pause();
+                e.target.innerText = "▶ Resume";
+            } else {
+                video.play();
+                e.target.innerText = "⏸ Freeze";
+            }
+        });
+    </script>
 </body>
 </html>
