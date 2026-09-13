@@ -1,7 +1,8 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Fiber Optic Color Identifier</title>
     <style>
         * {
@@ -14,6 +15,7 @@
         html, body {
             width: 100%;
             height: 100%;
+            height: -webkit-fill-available;
             background-color: #000;
             color: #fff;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
@@ -22,11 +24,12 @@
             flex-direction: column;
         }
 
-        /* Top Camera Area */
+        /* Top Camera View - Flexible sizing */
         #camera-container {
             position: relative;
             width: 100%;
-            height: 50vh;
+            flex: 1;
+            min-height: 35vh;
             background: #111;
             overflow: hidden;
             display: flex;
@@ -51,8 +54,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             border: 3px solid #00ffcc;
             border-radius: 50%;
             pointer-events: none;
@@ -84,42 +87,42 @@
             text-align: center;
         }
         #start-btn {
-            padding: 20px 36px;
-            font-size: 1.4rem;
+            padding: 18px 32px;
+            font-size: 1.3rem;
             font-weight: 800;
             background: #007aff;
             color: white;
             border: none;
             border-radius: 16px;
-            margin-top: 24px;
+            margin-top: 20px;
             cursor: pointer;
         }
 
-        /* Bottom Control Panel */
+        /* Bottom Panel - Automatically fits device screens */
         #result-panel {
-            height: 50vh;
+            flex: 0 0 auto;
             background: #1c1c1e;
             border-top: 2px solid #38383a;
-            padding: 16px;
+            padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 12px)) 14px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             box-sizing: border-box;
         }
         .result-card {
             display: flex;
             align-items: center;
             background: #2c2c2e;
-            border-radius: 16px;
-            padding: 14px;
+            border-radius: 14px;
+            padding: 10px 12px;
             border: 2px solid #444;
-            gap: 16px;
+            gap: 12px;
         }
         .color-badge {
-            width: 64px;
-            height: 64px;
-            border-radius: 12px;
-            border: 3px solid #fff;
+            width: 52px;
+            height: 52px;
+            border-radius: 10px;
+            border: 2px solid #fff;
             flex-shrink: 0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
@@ -128,7 +131,7 @@
             overflow: hidden;
         }
         .result-title {
-            font-size: 2.1rem;
+            font-size: 1.8rem;
             font-weight: 900;
             line-height: 1.1;
             color: #ffffff;
@@ -137,23 +140,23 @@
             overflow: hidden;
         }
         .result-sub {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             color: #34c759;
-            margin-top: 4px;
+            margin-top: 2px;
         }
 
         .brightness-control {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
             background: #2c2c2e;
-            padding: 10px 16px;
-            border-radius: 12px;
+            padding: 8px 12px;
+            border-radius: 10px;
             border: 1px solid #38383a;
         }
         .brightness-control label {
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             font-weight: bold;
             color: #aaa;
             white-space: nowrap;
@@ -161,21 +164,20 @@
         .brightness-control input[type=range] {
             flex: 1;
             accent-color: #0a84ff;
-            height: 8px;
+            height: 6px;
         }
 
         .controls {
             display: flex;
-            gap: 10px;
-            margin-top: auto;
+            gap: 8px;
         }
         button.ctrl-btn {
             flex: 1;
-            padding: 16px 8px;
-            font-size: 0.95rem;
+            padding: 12px 6px;
+            font-size: 0.85rem;
             font-weight: 700;
             border: none;
-            border-radius: 12px;
+            border-radius: 10px;
             background-color: #2c2c2e;
             color: #0a84ff;
             border: 1px solid #3a3a3c;
@@ -196,8 +198,8 @@
 <body>
 
     <div id="start-overlay">
-        <h1 style="font-size: 2.2rem;">Fiber Identifier</h1>
-        <p style="margin-top: 12px; font-size: 1.2rem; color: #aaa;">Align fiber strand in center dot</p>
+        <h1 style="font-size: 2rem;">Fiber Identifier</h1>
+        <p style="margin-top: 10px; font-size: 1.1rem; color: #aaa;">Align fiber strand in center dot</p>
         <button id="start-btn">TAP TO START</button>
     </div>
 
@@ -400,7 +402,6 @@
 
         document.getElementById('torch-btn').addEventListener('click', toggleTorch);
 
-        // Voice Assist ON / OFF Toggle
         document.getElementById('toggle-speech').addEventListener('click', (e) => {
             speechEnabled = !speechEnabled;
             if (speechEnabled) {
@@ -410,7 +411,7 @@
             } else {
                 e.target.innerText = "🔇 Voice: OFF";
                 e.target.classList.add('speech-disabled');
-                synth.cancel(); // Stop any currently playing speech immediately
+                synth.cancel();
             }
         });
 
