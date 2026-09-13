@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -27,8 +28,8 @@
         #camera-container {
             position: relative;
             width: 100%;
-            height: 52vh;
-            max-height: 52dvh;
+            height: 50vh;
+            max-height: 50dvh;
             background: #000;
             overflow: hidden;
             display: flex;
@@ -54,8 +55,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border: 2px solid #00ffcc;
             border-radius: 50%;
             pointer-events: none;
@@ -181,6 +182,7 @@
             height: 6px;
         }
 
+        /* 4 Button Layout Matrix */
         .controls {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -215,6 +217,7 @@
         button.calib-active {
             background-color: #30d158 !important;
             color: #000 !important;
+            font-weight: 900 !important;
         }
     </style>
 </head>
@@ -256,83 +259,92 @@
     </div>
 
     <script>
-        // TIA-598 Color Standard calibrated in LAB Space
         const TIA598 = [
-            { pos: 1,  name: "BLUE",   abbr: "BL", rgb: [0, 102, 204] },
-            { pos: 2,  name: "ORANGE", abbr: "OR", rgb: [255, 102, 0] },
-            { pos: 3,  name: "GREEN",  abbr: "GR", rgb: [0, 153, 51] },
-            { pos: 4,  name: "BROWN",  abbr: "BR", rgb: [102, 51, 0] },
-            { pos: 5,  name: "SLATE",  abbr: "SL", rgb: [128, 128, 128] },
-            { pos: 6,  name: "WHITE",  abbr: "WH", rgb: [240, 240, 240] },
-            { pos: 7,  name: "RED",    abbr: "RD", rgb: [204, 0, 0] },
-            { pos: 8,  name: "BLACK",  abbr: "BK", rgb: [20, 20, 20] },
-            { pos: 9,  name: "YELLOW", abbr: "YL", rgb: [255, 204, 0] },
-            { pos: 10, name: "VIOLET", abbr: "VI", rgb: [127, 0, 255] },
-            { pos: 11, name: "ROSE",   abbr: "RS", rgb: [255, 102, 178] },
-            { pos: 12, name: "AQUA",   abbr: "AQ", rgb: [0, 204, 204] }
+            { pos: 1,  name: "BLUE",   abbr: "BL" },
+            { pos: 2,  name: "ORANGE", abbr: "OR" },
+            { pos: 3,  name: "GREEN",  abbr: "GR" },
+            { pos: 4,  name: "BROWN",  abbr: "BR" },
+            { pos: 5,  name: "SLATE",  abbr: "SL" },
+            { pos: 6,  name: "WHITE",  abbr: "WH" },
+            { pos: 7,  name: "RED",    abbr: "RD" },
+            { pos: 8,  name: "BLACK",  abbr: "BK" },
+            { pos: 9,  name: "YELLOW", abbr: "YL" },
+            { pos: 10, name: "VIOLET", abbr: "VI" },
+            { pos: 11, name: "ROSE",   abbr: "RS" },
+            { pos: 12, name: "AQUA",   abbr: "AQ" }
         ];
 
-        // RGB to LAB perceptual color conversion algorithm
-        function rgbToLab(r, g, b) {
-            let rN = r / 255, gN = g / 255, bN = b / 255;
-            rN = (rN > 0.04045) ? Math.pow((rN + 0.055) / 1.055, 2.4) : rN / 12.92;
-            gN = (gN > 0.04045) ? Math.pow((gN + 0.055) / 1.055, 2.4) : gN / 12.92;
-            bN = (bN > 0.04045) ? Math.pow((bN + 0.055) / 1.055, 2.4) : bN / 12.92;
+        let wbGains = [1.0, 1.0, 1.0];
 
-            let x = (rN * 0.4124 + gN * 0.3576 + bN * 0.1805) / 0.95047;
-            let y = (rN * 0.2126 + gN * 0.7152 + bN * 0.0722) / 1.00000;
-            let z = (rN * 0.0193 + gN * 0.1192 + bN * 0.9505) / 1.08883;
+        // Converts RGB to HSV (Hue 0-360, Saturation 0-1, Value 0-1)
+        function rgbToHsv(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, v = max;
+            let d = max - min;
+            s = max === 0 ? 0 : d / max;
 
-            x = (x > 0.008856) ? Math.cbrt(x) : (7.787 * x) + (16 / 116);
-            y = (y > 0.008856) ? Math.cbrt(y) : (7.787 * y) + (16 / 116);
-            z = (z > 0.008856) ? Math.cbrt(z) : (7.787 * z) + (16 / 116);
-
-            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+            if (max === min) {
+                h = 0;
+            } else {
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return [h * 360, s, v];
         }
 
-        // Cache pre-calculated Lab values for TIA598 targets
-        const TIA598_LAB = TIA598.map(item => ({
-            ...item,
-            lab: rgbToLab(...item.rgb)
-        }));
+        // Dedicated Fiber TIA-598 Classifier
+        function classifyFiberColor(r, g, b) {
+            // Apply Manual White Balance Adjustment
+            let adjR = Math.min(255, Math.max(0, r * wbGains[0]));
+            let adjG = Math.min(255, Math.max(0, g * wbGains[1]));
+            let adjB = Math.min(255, Math.max(0, b * wbGains[2]));
 
-        let wbGain = [1.0, 1.0, 1.0]; // White balance gains
+            let [h, s, v] = rgbToHsv(adjR, adjG, adjB);
 
-        function calculateColorMatch(r, g, b) {
-            // Apply Manual White Balance multiplier
-            let adjR = Math.min(255, Math.max(0, r * wbGain[0]));
-            let adjG = Math.min(255, Math.max(0, g * wbGain[1]));
-            let adjB = Math.min(255, Math.max(0, b * wbGain[2]));
-
-            const max = Math.max(adjR, adjG, adjB);
-            const min = Math.min(adjR, adjG, adjB);
-            const chroma = max - min;
-            const brightness = (adjR + adjG + adjB) / 3;
-
-            // Absolute threshold overrides
-            if (max < 38) return { match: TIA598[7], confidence: 98 }; // Black
-            if (brightness > 215 && chroma < 18) return { match: TIA598[5], confidence: 95 }; // White
-            if (chroma < 14 && brightness >= 38 && brightness <= 215) return { match: TIA598[4], confidence: 90 }; // Slate
-
-            const sampleLab = rgbToLab(adjR, adjG, adjB);
-            let bestMatch = null;
-            let minDistance = Infinity;
-
-            for (const item of TIA598_LAB) {
-                // Delta E Euclidean Distance in CIE-LAB space
-                const dL = sampleLab[0] - item.lab[0];
-                const da = sampleLab[1] - item.lab[1];
-                const db = sampleLab[2] - item.lab[2];
-                const distance = Math.sqrt(dL * dL + da * da + db * db);
-
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    bestMatch = item;
-                }
+            // 1. Black & White & Slate (Achromatic bounds)
+            if (v < 0.18) return { match: TIA598[7], conf: 98, rgb: [adjR, adjG, adjB] }; // Black
+            if (s < 0.16) {
+                if (v > 0.72) return { match: TIA598[5], conf: 95, rgb: [adjR, adjG, adjB] }; // White
+                return { match: TIA598[4], conf: 90, rgb: [adjR, adjG, adjB] }; // Slate
             }
 
-            const confidence = Math.max(10, Math.round(100 - (minDistance * 0.65)));
-            return { match: bestMatch, confidence, rgb: [adjR, adjG, adjB] };
+            // 2. Chromatic Fiber Classification by calibrated Hue and Brightness/Saturation
+            let match = null;
+
+            if (h >= 345 || h < 11) {
+                match = TIA598[6]; // Red
+            } else if (h >= 11 && h < 38) {
+                // Separation between Orange, Brown, and Yellow
+                if (v < 0.45 && s > 0.35) {
+                    match = TIA598[3]; // Brown (low brightness orange/yellow)
+                } else {
+                    match = TIA598[1]; // Orange
+                }
+            } else if (h >= 38 && h < 68) {
+                // Separation between Yellow and Brown
+                if (v < 0.40 && s > 0.40) {
+                    match = TIA598[3]; // Brown
+                } else {
+                    match = TIA598[8]; // Yellow
+                }
+            } else if (h >= 68 && h < 165) {
+                match = TIA598[2]; // Green
+            } else if (h >= 165 && h < 200) {
+                match = TIA598[11]; // Aqua
+            } else if (h >= 200 && h < 255) {
+                match = TIA598[0]; // Blue
+            } else if (h >= 255 && h < 310) {
+                match = TIA598[9]; // Violet
+            } else if (h >= 310 && h < 345) {
+                match = TIA598[10]; // Rose
+            }
+
+            return { match, conf: 92, rgb: [adjR, adjG, adjB] };
         }
 
         const video = document.getElementById('webcam');
@@ -344,7 +356,7 @@
         let isFrozen = false;
         let lastSpoken = "";
         let colorHistory = [];
-        let currentSampleRGB = [128, 128, 128];
+        let currentRawRGB = [128, 128, 128];
         const synth = window.speechSynthesis;
 
         function speak(text) {
@@ -382,7 +394,7 @@
             ctx.filter = `brightness(${brightnessVal})`;
             ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
 
-            const sampleSize = 10;
+            const sampleSize = 8;
             const startX = Math.floor(overlay.width / 2 - sampleSize / 2);
             const startY = Math.floor(overlay.height / 2 - sampleSize / 2);
             const frameData = ctx.getImageData(startX, startY, sampleSize, sampleSize).data;
@@ -409,27 +421,28 @@
             const smoothG = Math.round(colorHistory.reduce((s, c) => s + c[1], 0) / colorHistory.length);
             const smoothB = Math.round(colorHistory.reduce((s, c) => s + c[2], 0) / colorHistory.length);
 
-            currentSampleRGB = [smoothR, smoothG, smoothB];
+            currentRawRGB = [smoothR, smoothG, smoothB];
 
-            const result = calculateColorMatch(smoothR, smoothG, smoothB);
+            const result = classifyFiberColor(smoothR, smoothG, smoothB);
             const color = result.match;
 
             if (color) {
                 document.getElementById('swatch').style.backgroundColor = `rgb(${result.rgb[0]}, ${result.rgb[1]}, ${result.rgb[2]})`;
                 document.getElementById('color-name').innerText = `${color.pos}. ${color.name}`;
-                document.getElementById('color-pos').innerText = `Abbr: ${color.abbr}  |  Match: ${result.confidence}%`;
+                document.getElementById('color-pos').innerText = `Abbr: ${color.abbr}  |  Match: ${result.conf}%`;
                 speak(`${color.name}, Position ${color.pos}`);
             }
         }
 
-        // White Balance Calibration
+        // White Balance Calibration Action
         document.getElementById('calib-btn').addEventListener('click', (e) => {
-            const avg = (currentSampleRGB[0] + currentSampleRGB[1] + currentSampleRGB[2]) / 3 || 1;
-            wbGain = [
-                avg / (currentSampleRGB[0] || 1),
-                avg / (currentSampleRGB[1] || 1),
-                avg / (currentSampleRGB[2] || 1)
+            const avg = (currentRawRGB[0] + currentRawRGB[1] + currentRawRGB[2]) / 3 || 1;
+            wbGains = [
+                avg / (currentRawRGB[0] || 1),
+                avg / (currentRawRGB[1] || 1),
+                avg / (currentRawRGB[2] || 1)
             ];
+            
             e.target.classList.add('calib-active');
             e.target.innerText = "✓ Calibrated";
             setTimeout(() => {
