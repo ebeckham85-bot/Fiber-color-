@@ -13,11 +13,10 @@
             -webkit-user-select: none;
         }
         
-        /* Grid container forces exact height match to real visible device screen */
         html, body {
             width: 100%;
             height: 100%;
-            height: 100dvh; /* Dynamic viewport height fixes mobile browser bar issues */
+            height: 100dvh;
             background-color: #000;
             color: #fff;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
@@ -26,7 +25,6 @@
             overflow: hidden;
         }
 
-        /* Camera Box dynamically resizes so panel below never gets pushed out */
         #camera-container {
             position: relative;
             width: 100%;
@@ -56,9 +54,9 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 44px;
-            height: 44px;
-            border: 3px solid #00ffcc;
+            width: 32px;
+            height: 32px;
+            border: 2px solid #00ffcc;
             border-radius: 50%;
             pointer-events: none;
             z-index: 15;
@@ -70,8 +68,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 6px;
-            height: 6px;
+            width: 4px;
+            height: 4px;
             background: #ff0055;
             border-radius: 50%;
         }
@@ -112,7 +110,6 @@
             cursor: pointer;
         }
 
-        /* Bottom Control Panel - Pinned strictly to bottom with safe inset padding */
         #result-panel {
             background: #1c1c1e;
             border-top: 2px solid #38383a;
@@ -181,7 +178,6 @@
             height: 6px;
         }
 
-        /* All 3 Buttons side-by-side */
         .controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -235,13 +231,13 @@
             <div id="swatch" class="color-badge" style="background-color: #555;"></div>
             <div class="result-info">
                 <div id="color-name" class="result-title">READY</div>
-                <div id="color-pos" class="result-sub">Pos: -- | ΔE: --</div>
+                <div id="color-pos" class="result-sub">Pos: -- | Confidence: --</div>
             </div>
         </div>
 
         <div class="brightness-control">
-            <label for="brightness">☀️ Brightness:</label>
-            <input type="range" id="brightness" min="0.5" max="3.0" step="0.1" value="1.0">
+            <label for="brightness">☀️ Exposure Boost:</label>
+            <input type="range" id="brightness" min="0.5" max="2.5" step="0.1" value="1.0">
         </div>
 
         <div class="controls">
@@ -252,60 +248,57 @@
     </div>
 
     <script>
+        // TIA-598-C Standard Colors normalized for camera RGB perception
         const TIA598 = [
-            { pos: 1,  name: "BLUE",   abbr: "BL", rgb: [0, 90, 212] },
-            { pos: 2,  name: "ORANGE", abbr: "OR", rgb: [242, 107, 15] },
-            { pos: 3,  name: "GREEN",  abbr: "GR", rgb: [24, 150, 48] },
-            { pos: 4,  name: "BROWN",  abbr: "BR", rgb: [102, 57, 24] },
-            { pos: 5,  name: "SLATE",  abbr: "SL", rgb: [110, 120, 128] },
-            { pos: 6,  name: "WHITE",  abbr: "WH", rgb: [225, 230, 235] },
-            { pos: 7,  name: "RED",    abbr: "RD", rgb: [210, 25, 35] },
-            { pos: 8,  name: "BLACK",  abbr: "BK", rgb: [25, 25, 28] },
-            { pos: 9,  name: "YELLOW", abbr: "YL", rgb: [245, 195, 20] },
-            { pos: 10, name: "VIOLET", abbr: "VI", rgb: [115, 38, 140] },
-            { pos: 11, name: "ROSE",   abbr: "RS", rgb: [235, 125, 160] },
-            { pos: 12, name: "AQUA",   abbr: "AQ", rgb: [0, 175, 190] }
+            { pos: 1,  name: "BLUE",   abbr: "BL", rgb: [10, 110, 230] },
+            { pos: 2,  name: "ORANGE", abbr: "OR", rgb: [240, 110, 20] },
+            { pos: 3,  name: "GREEN",  abbr: "GR", rgb: [20, 160, 50] },
+            { pos: 4,  name: "BROWN",  abbr: "BR", rgb: [110, 65, 35] },
+            { pos: 5,  name: "SLATE",  abbr: "SL", rgb: [130, 140, 150] },
+            { pos: 6,  name: "WHITE",  abbr: "WH", rgb: [230, 230, 230] },
+            { pos: 7,  name: "RED",    abbr: "RD", rgb: [220, 30, 40] },
+            { pos: 8,  name: "BLACK",  abbr: "BK", rgb: [30, 30, 35] },
+            { pos: 9,  name: "YELLOW", abbr: "YL", rgb: [240, 205, 30] },
+            { pos: 10, name: "VIOLET", abbr: "VI", rgb: [130, 50, 160] },
+            { pos: 11, name: "ROSE",   abbr: "RS", rgb: [235, 120, 165] },
+            { pos: 12, name: "AQUA",   abbr: "AQ", rgb: [0, 185, 205] }
         ];
 
-        function rgbToLab(r, g, b) {
-            r /= 255; g /= 255; b /= 255;
-            r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
-            g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
-            b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
-
-            let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100 / 95.047;
-            let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100 / 100.000;
-            let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100 / 108.883;
-
-            x = x > 0.008856 ? Math.cbrt(x) : (7.787 * x) + (16 / 116);
-            y = y > 0.008856 ? Math.cbrt(y) : (7.787 * y) + (16 / 116);
-            z = z > 0.008856 ? Math.cbrt(z) : (7.787 * z) + (16 / 116);
-
-            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+        function normalizeRGB(r, g, b) {
+            const sum = r + g + b || 1;
+            return [r / sum, g / sum, b / sum];
         }
 
-        function deltaE00(lab1, lab2) {
-            const [L1, a1, b1] = lab1;
-            const [L2, a2, b2] = lab2;
-            const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2);
-            const C_bar = (C1 + C2) / 2;
-            const G = 0.5 * (1 - Math.sqrt(Math.pow(C_bar, 7) / (Math.pow(C_bar, 7) + Math.pow(25, 7))));
-            const a1p = (1 + G) * a1, a2p = (1 + G) * a2;
-            const C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
-            const C_barp = (C1p + C2p) / 2;
-            const h1p = Math.atan2(b1, a1p) * 180 / Math.PI + (Math.atan2(b1, a1p) < 0 ? 360 : 0);
-            const h2p = Math.atan2(b2, a2p) * 180 / Math.PI + (Math.atan2(b2, a2p) < 0 ? 360 : 0);
-            const H_barp = Math.abs(h1p - h2p) > 180 ? (h1p + h2p + 360) / 2 : (h1p + h2p) / 2;
-            const T = 1 - 0.17 * Math.cos((H_barp - 30) * Math.PI / 180) + 0.24 * Math.cos((2 * H_barp) * Math.PI / 180) + 0.32 * Math.cos((3 * H_barp + 6) * Math.PI / 180) - 0.20 * Math.cos((4 * H_barp - 63) * Math.PI / 180);
-            const deltahp = Math.abs(h1p - h2p) <= 180 ? h2p - h1p : (h2p <= h1p ? h2p - h1p + 360 : h2p - h1p - 360);
-            const deltaLp = L2 - L1, deltaCp = C2p - C1p, deltaHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((deltahp / 2) * Math.PI / 180);
-            const Sl = 1 + (0.015 * Math.pow(L1 - 50, 2)) / Math.sqrt(20 + Math.pow(L1 - 50, 2));
-            const Sc = 1 + 0.045 * C_barp, Sh = 1 + 0.015 * C_barp * T;
-            const Rt = -2 * Math.sqrt(Math.pow(C_barp, 7) / (Math.pow(C_barp, 7) + Math.pow(25, 7))) * Math.sin((60 * Math.exp(-Math.pow((H_barp - 275) / 25, 2))) * Math.PI / 180);
-            return Math.sqrt(Math.pow(deltaLp / Sl, 2) + Math.pow(deltaCp / Sc, 2) + Math.pow(deltaHp / Sh, 2) + Rt * (deltaCp / Sc) * (deltaHp / Sh));
-        }
+        // Color distance function using chromaticity + HSV hue weighting
+        function calculateColorMatch(r, g, b) {
+            const sum = r + g + b;
+            const norm = normalizeRGB(r, g, b);
+            
+            // Check for Black/White special brightness bounds
+            if (sum < 100) return TIA598[7]; // BLACK
+            if (sum > 620 && Math.max(r,g,b) - Math.min(r,g,b) < 30) return TIA598[5]; // WHITE
 
-        const TIA598_LAB = TIA598.map(item => ({ ...item, lab: rgbToLab(...item.rgb) }));
+            let bestMatch = null;
+            let minScore = Infinity;
+
+            for (const item of TIA598) {
+                const itemNorm = normalizeRGB(...item.rgb);
+                
+                // Chromaticity Euclidean distance
+                const dr = norm[0] - itemNorm[0];
+                const dg = norm[1] - itemNorm[1];
+                const db = norm[2] - itemNorm[2];
+                
+                const score = Math.sqrt(dr * dr + dg * dg + db * db);
+
+                if (score < minScore) {
+                    minScore = score;
+                    bestMatch = item;
+                }
+            }
+
+            return { match: bestMatch, confidence: Math.max(0, Math.round((1 - minScore * 2.5) * 100)) };
+        }
 
         const video = document.getElementById('webcam');
         const overlay = document.getElementById('overlay');
@@ -315,6 +308,7 @@
         let speechEnabled = true;
         let isFrozen = false;
         let lastSpoken = "";
+        let colorHistory = [];
         const synth = window.speechSynthesis;
 
         function speak(text) {
@@ -328,7 +322,7 @@
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { exact: "environment" } },
+                    video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
                     audio: false
                 });
                 video.srcObject = stream;
@@ -361,11 +355,10 @@
                 }
             }
 
-            // Screen flash fallback for unsupported hardware (iOS Safari)
             if (!hardwareSuccess) {
                 if (torchOn) {
                     screenFlash.classList.add('screen-flash-on');
-                    brightnessSlider.value = "2.0";
+                    brightnessSlider.value = "1.8";
                 } else {
                     screenFlash.classList.remove('screen-flash-on');
                     brightnessSlider.value = "1.0";
@@ -386,44 +379,47 @@
             ctx.filter = `brightness(${brightnessVal})`;
             ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
 
-            const sampleSize = 20;
+            // Sample a 12x12 area at center reticle
+            const sampleSize = 12;
             const startX = Math.floor(overlay.width / 2 - sampleSize / 2);
             const startY = Math.floor(overlay.height / 2 - sampleSize / 2);
             const frameData = ctx.getImageData(startX, startY, sampleSize, sampleSize).data;
 
-            let validPixels = [];
+            let totalR = 0, totalG = 0, totalB = 0, count = 0;
+
             for (let i = 0; i < frameData.length; i += 4) {
                 const r = frameData[i], g = frameData[i + 1], b = frameData[i + 2];
-                const brightness = (r + g + b) / 3;
-                if (brightness < 240) {
-                    validPixels.push([r, g, b]);
+                // Exclude extreme specular reflections/glare
+                if ((r + g + b) < 730) {
+                    totalR += r;
+                    totalG += g;
+                    totalB += b;
+                    count++;
                 }
             }
 
-            if (validPixels.length === 0) return;
+            if (count === 0) return;
 
-            const avgR = Math.round(validPixels.reduce((acc, p) => acc + p[0], 0) / validPixels.length);
-            const avgG = Math.round(validPixels.reduce((acc, p) => acc + p[1], 0) / validPixels.length);
-            const avgB = Math.round(validPixels.reduce((acc, p) => acc + p[2], 0) / validPixels.length);
+            const avgR = Math.round(totalR / count);
+            const avgG = Math.round(totalG / count);
+            const avgB = Math.round(totalB / count);
 
-            const sampledLab = rgbToLab(avgR, avgG, avgB);
+            // Rolling 5-frame average to filter noise
+            colorHistory.push([avgR, avgG, avgB]);
+            if (colorHistory.length > 5) colorHistory.shift();
 
-            let closest = null;
-            let minDistance = Infinity;
+            const smoothR = Math.round(colorHistory.reduce((s, c) => s + c[0], 0) / colorHistory.length);
+            const smoothG = Math.round(colorHistory.reduce((s, c) => s + c[1], 0) / colorHistory.length);
+            const smoothB = Math.round(colorHistory.reduce((s, c) => s + c[2], 0) / colorHistory.length);
 
-            for (const item of TIA598_LAB) {
-                const dist = deltaE00(sampledLab, item.lab);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    closest = item;
-                }
-            }
+            const result = calculateColorMatch(smoothR, smoothG, smoothB);
+            const color = result.match || result;
 
-            if (closest) {
-                document.getElementById('swatch').style.backgroundColor = `rgb(${avgR}, ${avgG}, ${avgB})`;
-                document.getElementById('color-name').innerText = `${closest.pos}. ${closest.name}`;
-                document.getElementById('color-pos').innerText = `Abbr: ${closest.abbr}  |  ΔE: ${minDistance.toFixed(1)}`;
-                speak(`${closest.name}, Position ${closest.pos}`);
+            if (color) {
+                document.getElementById('swatch').style.backgroundColor = `rgb(${smoothR}, ${smoothG}, ${smoothB})`;
+                document.getElementById('color-name').innerText = `${color.pos}. ${color.name}`;
+                document.getElementById('color-pos').innerText = `Abbr: ${color.abbr}  |  Match: ${result.confidence || 90}%`;
+                speak(`${color.name}, Position ${color.pos}`);
             }
         }
 
@@ -433,7 +429,7 @@
 
             document.getElementById('start-overlay').style.display = 'none';
             await initCamera();
-            setInterval(sampleCenterColor, 200);
+            setInterval(sampleCenterColor, 150);
         });
 
         document.getElementById('torch-btn').addEventListener('click', toggleTorch);
