@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -20,16 +19,16 @@
             background-color: #000;
             color: #fff;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-            display: grid;
-            grid-template-rows: 1fr auto;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
         }
 
         #camera-container {
             position: relative;
             width: 100%;
-            height: 100%;
-            min-height: 160px;
+            flex: 1;
+            min-height: 180px;
             background: #111;
             overflow: hidden;
             display: flex;
@@ -110,14 +109,17 @@
             cursor: pointer;
         }
 
+        /* Fixed Bottom Panel with High Z-Index */
         #result-panel {
+            width: 100%;
             background: #1c1c1e;
             border-top: 2px solid #38383a;
             padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 12px)) 12px;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            z-index: 30;
+            z-index: 50;
+            flex-shrink: 0;
         }
 
         .result-card {
@@ -179,12 +181,12 @@
         }
 
         .controls {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            display: flex;
             gap: 6px;
             width: 100%;
         }
         button.ctrl-btn {
+            flex: 1;
             padding: 12px 2px;
             font-size: 0.8rem;
             font-weight: 700;
@@ -231,12 +233,12 @@
             <div id="swatch" class="color-badge" style="background-color: #555;"></div>
             <div class="result-info">
                 <div id="color-name" class="result-title">READY</div>
-                <div id="color-pos" class="result-sub">Pos: -- | Confidence: --</div>
+                <div id="color-pos" class="result-sub">Pos: -- | Match: --</div>
             </div>
         </div>
 
         <div class="brightness-control">
-            <label for="brightness">☀️ Exposure Boost:</label>
+            <label for="brightness">☀️ Exposure:</label>
             <input type="range" id="brightness" min="0.5" max="2.5" step="0.1" value="1.0">
         </div>
 
@@ -248,7 +250,6 @@
     </div>
 
     <script>
-        // TIA-598-C Standard Colors normalized for camera RGB perception
         const TIA598 = [
             { pos: 1,  name: "BLUE",   abbr: "BL", rgb: [10, 110, 230] },
             { pos: 2,  name: "ORANGE", abbr: "OR", rgb: [240, 110, 20] },
@@ -269,26 +270,21 @@
             return [r / sum, g / sum, b / sum];
         }
 
-        // Color distance function using chromaticity + HSV hue weighting
         function calculateColorMatch(r, g, b) {
             const sum = r + g + b;
             const norm = normalizeRGB(r, g, b);
             
-            // Check for Black/White special brightness bounds
-            if (sum < 100) return TIA598[7]; // BLACK
-            if (sum > 620 && Math.max(r,g,b) - Math.min(r,g,b) < 30) return TIA598[5]; // WHITE
+            if (sum < 100) return { match: TIA598[7], confidence: 95 };
+            if (sum > 620 && Math.max(r,g,b) - Math.min(r,g,b) < 30) return { match: TIA598[5], confidence: 95 };
 
             let bestMatch = null;
             let minScore = Infinity;
 
             for (const item of TIA598) {
                 const itemNorm = normalizeRGB(...item.rgb);
-                
-                // Chromaticity Euclidean distance
                 const dr = norm[0] - itemNorm[0];
                 const dg = norm[1] - itemNorm[1];
                 const db = norm[2] - itemNorm[2];
-                
                 const score = Math.sqrt(dr * dr + dg * dg + db * db);
 
                 if (score < minScore) {
@@ -322,7 +318,7 @@
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    video: { facingMode: { exact: "environment" } },
                     audio: false
                 });
                 video.srcObject = stream;
@@ -379,7 +375,6 @@
             ctx.filter = `brightness(${brightnessVal})`;
             ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
 
-            // Sample a 12x12 area at center reticle
             const sampleSize = 12;
             const startX = Math.floor(overlay.width / 2 - sampleSize / 2);
             const startY = Math.floor(overlay.height / 2 - sampleSize / 2);
@@ -389,7 +384,6 @@
 
             for (let i = 0; i < frameData.length; i += 4) {
                 const r = frameData[i], g = frameData[i + 1], b = frameData[i + 2];
-                // Exclude extreme specular reflections/glare
                 if ((r + g + b) < 730) {
                     totalR += r;
                     totalG += g;
@@ -404,7 +398,6 @@
             const avgG = Math.round(totalG / count);
             const avgB = Math.round(totalB / count);
 
-            // Rolling 5-frame average to filter noise
             colorHistory.push([avgR, avgG, avgB]);
             if (colorHistory.length > 5) colorHistory.shift();
 
@@ -413,12 +406,12 @@
             const smoothB = Math.round(colorHistory.reduce((s, c) => s + c[2], 0) / colorHistory.length);
 
             const result = calculateColorMatch(smoothR, smoothG, smoothB);
-            const color = result.match || result;
+            const color = result.match;
 
             if (color) {
                 document.getElementById('swatch').style.backgroundColor = `rgb(${smoothR}, ${smoothG}, ${smoothB})`;
                 document.getElementById('color-name').innerText = `${color.pos}. ${color.name}`;
-                document.getElementById('color-pos').innerText = `Abbr: ${color.abbr}  |  Match: ${result.confidence || 90}%`;
+                document.getElementById('color-pos').innerText = `Abbr: ${color.abbr}  |  Match: ${result.confidence}%`;
                 speak(`${color.name}, Position ${color.pos}`);
             }
         }
