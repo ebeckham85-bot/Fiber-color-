@@ -12,29 +12,31 @@
             user-select: none;
             -webkit-user-select: none;
         }
+        
+        /* Grid container forces exact height match to real visible device screen */
         html, body {
             width: 100%;
             height: 100%;
+            height: 100dvh; /* Dynamic viewport height fixes mobile browser bar issues */
             background-color: #000;
             color: #fff;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-rows: 1fr auto;
             overflow: hidden;
         }
 
-        /* Camera Feed Box */
+        /* Camera Box dynamically resizes so panel below never gets pushed out */
         #camera-container {
             position: relative;
             width: 100%;
-            height: 45vh;
-            min-height: 220px;
+            height: 100%;
+            min-height: 160px;
             background: #111;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
         }
         video {
             width: 100%;
@@ -54,8 +56,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 48px;
-            height: 48px;
+            width: 44px;
+            height: 44px;
             border: 3px solid #00ffcc;
             border-radius: 50%;
             pointer-events: none;
@@ -68,13 +70,12 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             background: #ff0055;
             border-radius: 50%;
         }
 
-        /* Screen Flash Overlay for iOS Fallback */
         #screen-flash {
             position: absolute;
             inset: 0;
@@ -111,43 +112,40 @@
             cursor: pointer;
         }
 
-        /* Bottom Controls Container - Scrollable to avoid clipping */
+        /* Bottom Control Panel - Pinned strictly to bottom with safe inset padding */
         #result-panel {
-            flex: 1;
             background: #1c1c1e;
             border-top: 2px solid #38383a;
-            padding: 12px 14px calc(16px + env(safe-area-inset-bottom, 12px)) 14px;
+            padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 12px)) 12px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
+            gap: 8px;
+            z-index: 30;
         }
 
         .result-card {
             display: flex;
             align-items: center;
             background: #2c2c2e;
-            border-radius: 14px;
-            padding: 10px 12px;
-            border: 2px solid #444;
-            gap: 12px;
-            flex-shrink: 0;
+            border-radius: 12px;
+            padding: 8px 10px;
+            border: 1.5px solid #444;
+            gap: 10px;
         }
         .color-badge {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
             border: 2px solid #fff;
             flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         .result-info {
             flex: 1;
             overflow: hidden;
         }
         .result-title {
-            font-size: 1.7rem;
+            font-size: 1.5rem;
             font-weight: 900;
             line-height: 1.1;
             color: #ffffff;
@@ -156,7 +154,7 @@
             overflow: hidden;
         }
         .result-sub {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 600;
             color: #34c759;
             margin-top: 2px;
@@ -165,15 +163,14 @@
         .brightness-control {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             background: #2c2c2e;
-            padding: 8px 12px;
-            border-radius: 10px;
+            padding: 6px 10px;
+            border-radius: 8px;
             border: 1px solid #38383a;
-            flex-shrink: 0;
         }
         .brightness-control label {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: bold;
             color: #aaa;
             white-space: nowrap;
@@ -184,24 +181,24 @@
             height: 6px;
         }
 
-        /* Control Buttons Row */
+        /* All 3 Buttons side-by-side */
         .controls {
-            display: flex;
-            gap: 8px;
-            flex-shrink: 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
             width: 100%;
         }
         button.ctrl-btn {
-            flex: 1;
-            padding: 14px 4px;
-            font-size: 0.85rem;
+            padding: 12px 2px;
+            font-size: 0.8rem;
             font-weight: 700;
             border: none;
-            border-radius: 10px;
+            border-radius: 8px;
             background-color: #2c2c2e;
             color: #0a84ff;
             border: 1px solid #3a3a3c;
             text-align: center;
+            white-space: nowrap;
         }
         button.ctrl-btn:active {
             background-color: #3a3a3c;
@@ -243,12 +240,12 @@
         </div>
 
         <div class="brightness-control">
-            <label for="brightness">☀️ Feed Brightness:</label>
+            <label for="brightness">☀️ Brightness:</label>
             <input type="range" id="brightness" min="0.5" max="3.0" step="0.1" value="1.0">
         </div>
 
         <div class="controls">
-            <button id="torch-btn" class="ctrl-btn">🔦 Torch: OFF</button>
+            <button id="torch-btn" class="ctrl-btn">🔦 Torch</button>
             <button id="toggle-speech" class="ctrl-btn">🗣 Voice: ON</button>
             <button id="freeze-btn" class="ctrl-btn">⏸ Freeze</button>
         </div>
@@ -345,7 +342,6 @@
             }
         }
 
-        // Dual Hardware/Digital Torch Functionality
         async function toggleTorch() {
             torchOn = !torchOn;
             const torchBtn = document.getElementById('torch-btn');
@@ -354,7 +350,7 @@
 
             let hardwareSuccess = false;
 
-            if (currentTrack) {
+            if (currentTrack && currentTrack.applyConstraints) {
                 try {
                     await currentTrack.applyConstraints({
                         advanced: [{ torch: torchOn }]
@@ -365,18 +361,18 @@
                 }
             }
 
-            // Fallback for iOS / Unsupported devices
+            // Screen flash fallback for unsupported hardware (iOS Safari)
             if (!hardwareSuccess) {
                 if (torchOn) {
                     screenFlash.classList.add('screen-flash-on');
-                    brightnessSlider.value = "2.0"; // Boost digital brightness
+                    brightnessSlider.value = "2.0";
                 } else {
                     screenFlash.classList.remove('screen-flash-on');
                     brightnessSlider.value = "1.0";
                 }
             }
 
-            torchBtn.innerText = torchOn ? "🔦 Torch: ON" : "🔦 Torch: OFF";
+            torchBtn.innerText = torchOn ? "🔦 Torch: ON" : "🔦 Torch";
             torchBtn.classList.toggle('torch-active', torchOn);
         }
 
