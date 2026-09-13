@@ -24,16 +24,18 @@
             overflow: hidden;
         }
 
+        /* Camera locked to max 55% height so bottom panel is ALWAYS visible */
         #camera-container {
             position: relative;
             width: 100%;
-            flex: 1;
-            min-height: 180px;
-            background: #111;
+            height: 55vh;
+            max-height: 55dvh;
+            background: #000;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
         video {
             width: 100%;
@@ -109,17 +111,18 @@
             cursor: pointer;
         }
 
-        /* Fixed Bottom Panel with High Z-Index */
+        /* Bottom Controls Container */
         #result-panel {
+            flex: 1;
             width: 100%;
             background: #1c1c1e;
             border-top: 2px solid #38383a;
-            padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 12px)) 12px;
+            padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 8px)) 12px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            justify-content: space-evenly;
+            gap: 6px;
             z-index: 50;
-            flex-shrink: 0;
         }
 
         .result-card {
@@ -132,8 +135,8 @@
             gap: 10px;
         }
         .color-badge {
-            width: 42px;
-            height: 42px;
+            width: 38px;
+            height: 38px;
             border-radius: 8px;
             border: 2px solid #fff;
             flex-shrink: 0;
@@ -144,7 +147,7 @@
             overflow: hidden;
         }
         .result-title {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 900;
             line-height: 1.1;
             color: #ffffff;
@@ -153,7 +156,7 @@
             overflow: hidden;
         }
         .result-sub {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: 600;
             color: #34c759;
             margin-top: 2px;
@@ -169,7 +172,7 @@
             border: 1px solid #38383a;
         }
         .brightness-control label {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: bold;
             color: #aaa;
             white-space: nowrap;
@@ -187,8 +190,8 @@
         }
         button.ctrl-btn {
             flex: 1;
-            padding: 12px 2px;
-            font-size: 0.8rem;
+            padding: 10px 2px;
+            font-size: 0.75rem;
             font-weight: 700;
             border: none;
             border-radius: 8px;
