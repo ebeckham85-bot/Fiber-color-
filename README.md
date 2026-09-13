@@ -16,17 +16,17 @@
             height: 100%;
             background-color: #000;
             color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
             overflow: hidden;
             display: flex;
             flex-direction: column;
         }
 
-        /* Top 55% of Screen: Camera View */
+        /* Top Camera Area */
         #camera-container {
             position: relative;
             width: 100%;
-            height: 55vh;
+            height: 50vh;
             background: #111;
             overflow: hidden;
             display: flex;
@@ -71,7 +71,6 @@
             border-radius: 50%;
         }
 
-        /* Start Overlay */
         #start-overlay {
             position: absolute;
             inset: 0;
@@ -94,18 +93,17 @@
             border-radius: 16px;
             margin-top: 24px;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
         }
 
-        /* Bottom 45% of Screen: Large High-Contrast Results Panel */
+        /* Bottom Control Panel */
         #result-panel {
-            height: 45vh;
+            height: 50vh;
             background: #1c1c1e;
             border-top: 2px solid #38383a;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            gap: 12px;
             box-sizing: border-box;
         }
         .result-card {
@@ -113,13 +111,13 @@
             align-items: center;
             background: #2c2c2e;
             border-radius: 16px;
-            padding: 16px;
+            padding: 14px;
             border: 2px solid #444;
             gap: 16px;
         }
         .color-badge {
-            width: 72px;
-            height: 72px;
+            width: 64px;
+            height: 64px;
             border-radius: 12px;
             border: 3px solid #fff;
             flex-shrink: 0;
@@ -130,41 +128,68 @@
             overflow: hidden;
         }
         .result-title {
-            font-size: 2.2rem;
+            font-size: 2.1rem;
             font-weight: 900;
             line-height: 1.1;
-            letter-spacing: 0.5px;
             color: #ffffff;
             white-space: nowrap;
             text-overflow: ellipsis;
             overflow: hidden;
         }
         .result-sub {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
-            color: #34c759; /* Bright green text for metrics */
-            margin-top: 6px;
+            color: #34c759;
+            margin-top: 4px;
         }
 
-        /* Large Action Buttons */
+        .brightness-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #2c2c2e;
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid #38383a;
+        }
+        .brightness-control label {
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: #aaa;
+            white-space: nowrap;
+        }
+        .brightness-control input[type=range] {
+            flex: 1;
+            accent-color: #0a84ff;
+            height: 8px;
+        }
+
         .controls {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             margin-top: auto;
         }
         button.ctrl-btn {
             flex: 1;
-            padding: 18px 12px;
-            font-size: 1.1rem;
+            padding: 16px 8px;
+            font-size: 0.95rem;
             font-weight: 700;
             border: none;
-            border-radius: 14px;
+            border-radius: 12px;
             background-color: #2c2c2e;
             color: #0a84ff;
             border: 1px solid #3a3a3c;
         }
         button.ctrl-btn:active {
             background-color: #3a3a3c;
+        }
+        button.speech-disabled {
+            color: #ff453a !important;
+            border-color: #ff453a !important;
+        }
+        button.torch-active {
+            background-color: #ffd60a !important;
+            color: #000 !important;
         }
     </style>
 </head>
@@ -191,8 +216,14 @@
             </div>
         </div>
 
+        <div class="brightness-control">
+            <label for="brightness">☀️ Feed Brightness:</label>
+            <input type="range" id="brightness" min="0.5" max="2.5" step="0.1" value="1.0">
+        </div>
+
         <div class="controls">
-            <button id="toggle-speech" class="ctrl-btn">🔊 Audio: ON</button>
+            <button id="torch-btn" class="ctrl-btn">🔦 Torch: OFF</button>
+            <button id="toggle-speech" class="ctrl-btn">🗣 Voice: ON</button>
             <button id="freeze-btn" class="ctrl-btn">⏸ Freeze</button>
         </div>
     </div>
@@ -256,6 +287,8 @@
         const video = document.getElementById('webcam');
         const overlay = document.getElementById('overlay');
         const ctx = overlay.getContext('2d');
+        let currentTrack = null;
+        let torchOn = false;
         let speechEnabled = true;
         let isFrozen = false;
         let lastSpoken = "";
@@ -276,11 +309,32 @@
                     audio: false
                 });
                 video.srcObject = stream;
+                currentTrack = stream.getVideoTracks()[0];
             } catch (err) {
                 const fallbackStream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: "environment" }
                 });
                 video.srcObject = fallbackStream;
+                currentTrack = fallbackStream.getVideoTracks()[0];
+            }
+        }
+
+        async function toggleTorch() {
+            if (!currentTrack) return;
+            const capabilities = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
+            if (!capabilities.torch) {
+                alert("Hardware Flashlight is restricted on iOS Safari. Use the Feed Brightness slider above.");
+                return;
+            }
+
+            try {
+                torchOn = !torchOn;
+                await currentTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+                const torchBtn = document.getElementById('torch-btn');
+                torchBtn.innerText = torchOn ? "🔦 Torch: ON" : "🔦 Torch: OFF";
+                torchBtn.classList.toggle('torch-active', torchOn);
+            } catch (e) {
+                alert("Flashlight error: " + e.message);
             }
         }
 
@@ -289,6 +343,9 @@
 
             overlay.width = video.videoWidth;
             overlay.height = video.videoHeight;
+            
+            const brightnessVal = document.getElementById('brightness').value;
+            ctx.filter = `brightness(${brightnessVal})`;
             ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
 
             const sampleSize = 20;
@@ -341,9 +398,20 @@
             setInterval(sampleCenterColor, 200);
         });
 
+        document.getElementById('torch-btn').addEventListener('click', toggleTorch);
+
+        // Voice Assist ON / OFF Toggle
         document.getElementById('toggle-speech').addEventListener('click', (e) => {
             speechEnabled = !speechEnabled;
-            e.target.innerText = speechEnabled ? "🔊 Audio: ON" : "🔇 Audio: OFF";
+            if (speechEnabled) {
+                e.target.innerText = "🗣 Voice: ON";
+                e.target.classList.remove('speech-disabled');
+                speak("Voice assist active");
+            } else {
+                e.target.innerText = "🔇 Voice: OFF";
+                e.target.classList.add('speech-disabled');
+                synth.cancel(); // Stop any currently playing speech immediately
+            }
         });
 
         document.getElementById('freeze-btn').addEventListener('click', (e) => {
