@@ -24,12 +24,11 @@
             overflow: hidden;
         }
 
-        /* Camera locked to max 55% height so bottom panel is ALWAYS visible */
         #camera-container {
             position: relative;
             width: 100%;
-            height: 55vh;
-            max-height: 55dvh;
+            height: 52vh;
+            max-height: 52dvh;
             background: #000;
             overflow: hidden;
             display: flex;
@@ -111,7 +110,6 @@
             cursor: pointer;
         }
 
-        /* Bottom Controls Container */
         #result-panel {
             flex: 1;
             width: 100%;
@@ -184,12 +182,12 @@
         }
 
         .controls {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 6px;
             width: 100%;
         }
         button.ctrl-btn {
-            flex: 1;
             padding: 10px 2px;
             font-size: 0.75rem;
             font-weight: 700;
@@ -213,6 +211,10 @@
             background-color: #ffd60a !important;
             color: #000 !important;
             font-weight: 900 !important;
+        }
+        button.calib-active {
+            background-color: #30d158 !important;
+            color: #000 !important;
         }
     </style>
 </head>
@@ -246,6 +248,7 @@
         </div>
 
         <div class="controls">
+            <button id="calib-btn" class="ctrl-btn">🎯 Calibrate White</button>
             <button id="torch-btn" class="ctrl-btn">🔦 Torch</button>
             <button id="toggle-speech" class="ctrl-btn">🗣 Voice: ON</button>
             <button id="freeze-btn" class="ctrl-btn">⏸ Freeze</button>
@@ -253,50 +256,83 @@
     </div>
 
     <script>
+        // TIA-598 Color Standard calibrated in LAB Space
         const TIA598 = [
-            { pos: 1,  name: "BLUE",   abbr: "BL", rgb: [10, 110, 230] },
-            { pos: 2,  name: "ORANGE", abbr: "OR", rgb: [240, 110, 20] },
-            { pos: 3,  name: "GREEN",  abbr: "GR", rgb: [20, 160, 50] },
-            { pos: 4,  name: "BROWN",  abbr: "BR", rgb: [110, 65, 35] },
-            { pos: 5,  name: "SLATE",  abbr: "SL", rgb: [130, 140, 150] },
-            { pos: 6,  name: "WHITE",  abbr: "WH", rgb: [230, 230, 230] },
-            { pos: 7,  name: "RED",    abbr: "RD", rgb: [220, 30, 40] },
-            { pos: 8,  name: "BLACK",  abbr: "BK", rgb: [30, 30, 35] },
-            { pos: 9,  name: "YELLOW", abbr: "YL", rgb: [240, 205, 30] },
-            { pos: 10, name: "VIOLET", abbr: "VI", rgb: [130, 50, 160] },
-            { pos: 11, name: "ROSE",   abbr: "RS", rgb: [235, 120, 165] },
-            { pos: 12, name: "AQUA",   abbr: "AQ", rgb: [0, 185, 205] }
+            { pos: 1,  name: "BLUE",   abbr: "BL", rgb: [0, 102, 204] },
+            { pos: 2,  name: "ORANGE", abbr: "OR", rgb: [255, 102, 0] },
+            { pos: 3,  name: "GREEN",  abbr: "GR", rgb: [0, 153, 51] },
+            { pos: 4,  name: "BROWN",  abbr: "BR", rgb: [102, 51, 0] },
+            { pos: 5,  name: "SLATE",  abbr: "SL", rgb: [128, 128, 128] },
+            { pos: 6,  name: "WHITE",  abbr: "WH", rgb: [240, 240, 240] },
+            { pos: 7,  name: "RED",    abbr: "RD", rgb: [204, 0, 0] },
+            { pos: 8,  name: "BLACK",  abbr: "BK", rgb: [20, 20, 20] },
+            { pos: 9,  name: "YELLOW", abbr: "YL", rgb: [255, 204, 0] },
+            { pos: 10, name: "VIOLET", abbr: "VI", rgb: [127, 0, 255] },
+            { pos: 11, name: "ROSE",   abbr: "RS", rgb: [255, 102, 178] },
+            { pos: 12, name: "AQUA",   abbr: "AQ", rgb: [0, 204, 204] }
         ];
 
-        function normalizeRGB(r, g, b) {
-            const sum = r + g + b || 1;
-            return [r / sum, g / sum, b / sum];
+        // RGB to LAB perceptual color conversion algorithm
+        function rgbToLab(r, g, b) {
+            let rN = r / 255, gN = g / 255, bN = b / 255;
+            rN = (rN > 0.04045) ? Math.pow((rN + 0.055) / 1.055, 2.4) : rN / 12.92;
+            gN = (gN > 0.04045) ? Math.pow((gN + 0.055) / 1.055, 2.4) : gN / 12.92;
+            bN = (bN > 0.04045) ? Math.pow((bN + 0.055) / 1.055, 2.4) : bN / 12.92;
+
+            let x = (rN * 0.4124 + gN * 0.3576 + bN * 0.1805) / 0.95047;
+            let y = (rN * 0.2126 + gN * 0.7152 + bN * 0.0722) / 1.00000;
+            let z = (rN * 0.0193 + gN * 0.1192 + bN * 0.9505) / 1.08883;
+
+            x = (x > 0.008856) ? Math.cbrt(x) : (7.787 * x) + (16 / 116);
+            y = (y > 0.008856) ? Math.cbrt(y) : (7.787 * y) + (16 / 116);
+            z = (z > 0.008856) ? Math.cbrt(z) : (7.787 * z) + (16 / 116);
+
+            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
+        // Cache pre-calculated Lab values for TIA598 targets
+        const TIA598_LAB = TIA598.map(item => ({
+            ...item,
+            lab: rgbToLab(...item.rgb)
+        }));
+
+        let wbGain = [1.0, 1.0, 1.0]; // White balance gains
+
         function calculateColorMatch(r, g, b) {
-            const sum = r + g + b;
-            const norm = normalizeRGB(r, g, b);
-            
-            if (sum < 100) return { match: TIA598[7], confidence: 95 };
-            if (sum > 620 && Math.max(r,g,b) - Math.min(r,g,b) < 30) return { match: TIA598[5], confidence: 95 };
+            // Apply Manual White Balance multiplier
+            let adjR = Math.min(255, Math.max(0, r * wbGain[0]));
+            let adjG = Math.min(255, Math.max(0, g * wbGain[1]));
+            let adjB = Math.min(255, Math.max(0, b * wbGain[2]));
 
+            const max = Math.max(adjR, adjG, adjB);
+            const min = Math.min(adjR, adjG, adjB);
+            const chroma = max - min;
+            const brightness = (adjR + adjG + adjB) / 3;
+
+            // Absolute threshold overrides
+            if (max < 38) return { match: TIA598[7], confidence: 98 }; // Black
+            if (brightness > 215 && chroma < 18) return { match: TIA598[5], confidence: 95 }; // White
+            if (chroma < 14 && brightness >= 38 && brightness <= 215) return { match: TIA598[4], confidence: 90 }; // Slate
+
+            const sampleLab = rgbToLab(adjR, adjG, adjB);
             let bestMatch = null;
-            let minScore = Infinity;
+            let minDistance = Infinity;
 
-            for (const item of TIA598) {
-                const itemNorm = normalizeRGB(...item.rgb);
-                const dr = norm[0] - itemNorm[0];
-                const dg = norm[1] - itemNorm[1];
-                const db = norm[2] - itemNorm[2];
-                const score = Math.sqrt(dr * dr + dg * dg + db * db);
+            for (const item of TIA598_LAB) {
+                // Delta E Euclidean Distance in CIE-LAB space
+                const dL = sampleLab[0] - item.lab[0];
+                const da = sampleLab[1] - item.lab[1];
+                const db = sampleLab[2] - item.lab[2];
+                const distance = Math.sqrt(dL * dL + da * da + db * db);
 
-                if (score < minScore) {
-                    minScore = score;
+                if (distance < minDistance) {
+                    minDistance = distance;
                     bestMatch = item;
                 }
             }
 
-            return { match: bestMatch, confidence: Math.max(0, Math.round((1 - minScore * 2.5) * 100)) };
+            const confidence = Math.max(10, Math.round(100 - (minDistance * 0.65)));
+            return { match: bestMatch, confidence, rgb: [adjR, adjG, adjB] };
         }
 
         const video = document.getElementById('webcam');
@@ -308,6 +344,7 @@
         let isFrozen = false;
         let lastSpoken = "";
         let colorHistory = [];
+        let currentSampleRGB = [128, 128, 128];
         const synth = window.speechSynthesis;
 
         function speak(text) {
@@ -321,7 +358,7 @@
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { exact: "environment" } },
+                    video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
                     audio: false
                 });
                 video.srcObject = stream;
@@ -335,39 +372,6 @@
             }
         }
 
-        async function toggleTorch() {
-            torchOn = !torchOn;
-            const torchBtn = document.getElementById('torch-btn');
-            const screenFlash = document.getElementById('screen-flash');
-            const brightnessSlider = document.getElementById('brightness');
-
-            let hardwareSuccess = false;
-
-            if (currentTrack && currentTrack.applyConstraints) {
-                try {
-                    await currentTrack.applyConstraints({
-                        advanced: [{ torch: torchOn }]
-                    });
-                    hardwareSuccess = true;
-                } catch (e) {
-                    hardwareSuccess = false;
-                }
-            }
-
-            if (!hardwareSuccess) {
-                if (torchOn) {
-                    screenFlash.classList.add('screen-flash-on');
-                    brightnessSlider.value = "1.8";
-                } else {
-                    screenFlash.classList.remove('screen-flash-on');
-                    brightnessSlider.value = "1.0";
-                }
-            }
-
-            torchBtn.innerText = torchOn ? "🔦 Torch: ON" : "🔦 Torch";
-            torchBtn.classList.toggle('torch-active', torchOn);
-        }
-
         function sampleCenterColor() {
             if (video.readyState !== video.HAVE_ENOUGH_DATA || isFrozen) return;
 
@@ -378,7 +382,7 @@
             ctx.filter = `brightness(${brightnessVal})`;
             ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
 
-            const sampleSize = 12;
+            const sampleSize = 10;
             const startX = Math.floor(overlay.width / 2 - sampleSize / 2);
             const startY = Math.floor(overlay.height / 2 - sampleSize / 2);
             const frameData = ctx.getImageData(startX, startY, sampleSize, sampleSize).data;
@@ -386,13 +390,10 @@
             let totalR = 0, totalG = 0, totalB = 0, count = 0;
 
             for (let i = 0; i < frameData.length; i += 4) {
-                const r = frameData[i], g = frameData[i + 1], b = frameData[i + 2];
-                if ((r + g + b) < 730) {
-                    totalR += r;
-                    totalG += g;
-                    totalB += b;
-                    count++;
-                }
+                totalR += frameData[i];
+                totalG += frameData[i + 1];
+                totalB += frameData[i + 2];
+                count++;
             }
 
             if (count === 0) return;
@@ -408,16 +409,34 @@
             const smoothG = Math.round(colorHistory.reduce((s, c) => s + c[1], 0) / colorHistory.length);
             const smoothB = Math.round(colorHistory.reduce((s, c) => s + c[2], 0) / colorHistory.length);
 
+            currentSampleRGB = [smoothR, smoothG, smoothB];
+
             const result = calculateColorMatch(smoothR, smoothG, smoothB);
             const color = result.match;
 
             if (color) {
-                document.getElementById('swatch').style.backgroundColor = `rgb(${smoothR}, ${smoothG}, ${smoothB})`;
+                document.getElementById('swatch').style.backgroundColor = `rgb(${result.rgb[0]}, ${result.rgb[1]}, ${result.rgb[2]})`;
                 document.getElementById('color-name').innerText = `${color.pos}. ${color.name}`;
                 document.getElementById('color-pos').innerText = `Abbr: ${color.abbr}  |  Match: ${result.confidence}%`;
                 speak(`${color.name}, Position ${color.pos}`);
             }
         }
+
+        // White Balance Calibration
+        document.getElementById('calib-btn').addEventListener('click', (e) => {
+            const avg = (currentSampleRGB[0] + currentSampleRGB[1] + currentSampleRGB[2]) / 3 || 1;
+            wbGain = [
+                avg / (currentSampleRGB[0] || 1),
+                avg / (currentSampleRGB[1] || 1),
+                avg / (currentSampleRGB[2] || 1)
+            ];
+            e.target.classList.add('calib-active');
+            e.target.innerText = "✓ Calibrated";
+            setTimeout(() => {
+                e.target.classList.remove('calib-active');
+                e.target.innerText = "🎯 Calibrate White";
+            }, 1800);
+        });
 
         document.getElementById('start-btn').addEventListener('click', async () => {
             const silentUtterance = new SpeechSynthesisUtterance("");
@@ -425,10 +444,29 @@
 
             document.getElementById('start-overlay').style.display = 'none';
             await initCamera();
-            setInterval(sampleCenterColor, 150);
+            setInterval(sampleCenterColor, 120);
         });
 
-        document.getElementById('torch-btn').addEventListener('click', toggleTorch);
+        document.getElementById('torch-btn').addEventListener('click', async () => {
+            torchOn = !torchOn;
+            const torchBtn = document.getElementById('torch-btn');
+            const screenFlash = document.getElementById('screen-flash');
+
+            let hardwareSuccess = false;
+            if (currentTrack && currentTrack.applyConstraints) {
+                try {
+                    await currentTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+                    hardwareSuccess = true;
+                } catch (e) { hardwareSuccess = false; }
+            }
+
+            if (!hardwareSuccess) {
+                screenFlash.classList.toggle('screen-flash-on', torchOn);
+            }
+
+            torchBtn.innerText = torchOn ? "🔦 Torch: ON" : "🔦 Torch";
+            torchBtn.classList.toggle('torch-active', torchOn);
+        });
 
         document.getElementById('toggle-speech').addEventListener('click', (e) => {
             speechEnabled = !speechEnabled;
