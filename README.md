@@ -15,26 +15,26 @@
         html, body {
             width: 100%;
             height: 100%;
-            height: -webkit-fill-available;
             background-color: #000;
             color: #fff;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-            overflow: hidden;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
-        /* Top Camera View - Flexible sizing */
+        /* Camera Feed Box */
         #camera-container {
             position: relative;
             width: 100%;
-            flex: 1;
-            min-height: 35vh;
+            height: 45vh;
+            min-height: 220px;
             background: #111;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
         video {
             width: 100%;
@@ -54,8 +54,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
             border: 3px solid #00ffcc;
             border-radius: 50%;
             pointer-events: none;
@@ -74,41 +74,56 @@
             border-radius: 50%;
         }
 
+        /* Screen Flash Overlay for iOS Fallback */
+        #screen-flash {
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 255, 255, 0);
+            pointer-events: none;
+            z-index: 20;
+            transition: background 0.3s ease;
+        }
+        .screen-flash-on {
+            background: rgba(255, 255, 255, 0.85) !important;
+        }
+
         #start-overlay {
             position: absolute;
             inset: 0;
-            background: rgba(0, 0, 0, 0.92);
+            background: rgba(0, 0, 0, 0.95);
             z-index: 100;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 24px;
+            padding: 20px;
             text-align: center;
         }
         #start-btn {
-            padding: 18px 32px;
-            font-size: 1.3rem;
+            padding: 16px 32px;
+            font-size: 1.2rem;
             font-weight: 800;
             background: #007aff;
             color: white;
             border: none;
-            border-radius: 16px;
+            border-radius: 14px;
             margin-top: 20px;
             cursor: pointer;
         }
 
-        /* Bottom Panel - Automatically fits device screens */
+        /* Bottom Controls Container - Scrollable to avoid clipping */
         #result-panel {
-            flex: 0 0 auto;
+            flex: 1;
             background: #1c1c1e;
             border-top: 2px solid #38383a;
-            padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 12px)) 14px;
+            padding: 12px 14px calc(16px + env(safe-area-inset-bottom, 12px)) 14px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            box-sizing: border-box;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
+
         .result-card {
             display: flex;
             align-items: center;
@@ -117,10 +132,11 @@
             padding: 10px 12px;
             border: 2px solid #444;
             gap: 12px;
+            flex-shrink: 0;
         }
         .color-badge {
-            width: 52px;
-            height: 52px;
+            width: 48px;
+            height: 48px;
             border-radius: 10px;
             border: 2px solid #fff;
             flex-shrink: 0;
@@ -131,7 +147,7 @@
             overflow: hidden;
         }
         .result-title {
-            font-size: 1.8rem;
+            font-size: 1.7rem;
             font-weight: 900;
             line-height: 1.1;
             color: #ffffff;
@@ -140,7 +156,7 @@
             overflow: hidden;
         }
         .result-sub {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
             color: #34c759;
             margin-top: 2px;
@@ -154,6 +170,7 @@
             padding: 8px 12px;
             border-radius: 10px;
             border: 1px solid #38383a;
+            flex-shrink: 0;
         }
         .brightness-control label {
             font-size: 0.85rem;
@@ -167,13 +184,16 @@
             height: 6px;
         }
 
+        /* Control Buttons Row */
         .controls {
             display: flex;
             gap: 8px;
+            flex-shrink: 0;
+            width: 100%;
         }
         button.ctrl-btn {
             flex: 1;
-            padding: 12px 6px;
+            padding: 14px 4px;
             font-size: 0.85rem;
             font-weight: 700;
             border: none;
@@ -181,6 +201,7 @@
             background-color: #2c2c2e;
             color: #0a84ff;
             border: 1px solid #3a3a3c;
+            text-align: center;
         }
         button.ctrl-btn:active {
             background-color: #3a3a3c;
@@ -188,18 +209,20 @@
         button.speech-disabled {
             color: #ff453a !important;
             border-color: #ff453a !important;
+            background-color: #3a1c1c !important;
         }
         button.torch-active {
             background-color: #ffd60a !important;
             color: #000 !important;
+            font-weight: 900 !important;
         }
     </style>
 </head>
 <body>
 
     <div id="start-overlay">
-        <h1 style="font-size: 2rem;">Fiber Identifier</h1>
-        <p style="margin-top: 10px; font-size: 1.1rem; color: #aaa;">Align fiber strand in center dot</p>
+        <h1 style="font-size: 1.8rem;">Fiber Identifier</h1>
+        <p style="margin-top: 10px; font-size: 1rem; color: #aaa;">Align fiber strand in center dot</p>
         <button id="start-btn">TAP TO START</button>
     </div>
 
@@ -207,6 +230,7 @@
         <video id="webcam" autoplay playsinline muted></video>
         <canvas id="overlay"></canvas>
         <div class="reticle"></div>
+        <div id="screen-flash"></div>
     </div>
 
     <div id="result-panel">
@@ -220,7 +244,7 @@
 
         <div class="brightness-control">
             <label for="brightness">☀️ Feed Brightness:</label>
-            <input type="range" id="brightness" min="0.5" max="2.5" step="0.1" value="1.0">
+            <input type="range" id="brightness" min="0.5" max="3.0" step="0.1" value="1.0">
         </div>
 
         <div class="controls">
@@ -321,23 +345,39 @@
             }
         }
 
+        // Dual Hardware/Digital Torch Functionality
         async function toggleTorch() {
-            if (!currentTrack) return;
-            const capabilities = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
-            if (!capabilities.torch) {
-                alert("Hardware Flashlight is restricted on iOS Safari. Use the Feed Brightness slider above.");
-                return;
+            torchOn = !torchOn;
+            const torchBtn = document.getElementById('torch-btn');
+            const screenFlash = document.getElementById('screen-flash');
+            const brightnessSlider = document.getElementById('brightness');
+
+            let hardwareSuccess = false;
+
+            if (currentTrack) {
+                try {
+                    await currentTrack.applyConstraints({
+                        advanced: [{ torch: torchOn }]
+                    });
+                    hardwareSuccess = true;
+                } catch (e) {
+                    hardwareSuccess = false;
+                }
             }
 
-            try {
-                torchOn = !torchOn;
-                await currentTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
-                const torchBtn = document.getElementById('torch-btn');
-                torchBtn.innerText = torchOn ? "🔦 Torch: ON" : "🔦 Torch: OFF";
-                torchBtn.classList.toggle('torch-active', torchOn);
-            } catch (e) {
-                alert("Flashlight error: " + e.message);
+            // Fallback for iOS / Unsupported devices
+            if (!hardwareSuccess) {
+                if (torchOn) {
+                    screenFlash.classList.add('screen-flash-on');
+                    brightnessSlider.value = "2.0"; // Boost digital brightness
+                } else {
+                    screenFlash.classList.remove('screen-flash-on');
+                    brightnessSlider.value = "1.0";
+                }
             }
+
+            torchBtn.innerText = torchOn ? "🔦 Torch: ON" : "🔦 Torch: OFF";
+            torchBtn.classList.toggle('torch-active', torchOn);
         }
 
         function sampleCenterColor() {
@@ -407,7 +447,7 @@
             if (speechEnabled) {
                 e.target.innerText = "🗣 Voice: ON";
                 e.target.classList.remove('speech-disabled');
-                speak("Voice assist active");
+                speak("Voice active");
             } else {
                 e.target.innerText = "🔇 Voice: OFF";
                 e.target.classList.add('speech-disabled');
